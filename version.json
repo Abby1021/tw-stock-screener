@@ -1,0 +1,18 @@
+{
+  "version": "3.2",
+  "date": "2026-10-20",
+  "notes": [
+    "新增自動更新：有新版時頁面上方會提示，按「立即更新」就好",
+    "頁面最下方顯示目前版本"
+  ],
+  "files": [
+    "index.html",
+    "style.css",
+    "app.js",
+    "server.ps1",
+    "server.py",
+    "start.bat",
+    "README.txt",
+    "version.json"
+  ]
+}

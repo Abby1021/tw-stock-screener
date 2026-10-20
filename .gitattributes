@@ -1,0 +1,4 @@
+# Windows 腳本必須保留 CRLF 換行
+*.bat  -text
+*.ps1  -text
+*.txt  -text

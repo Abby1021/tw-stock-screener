@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>台股條件選股器</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path d="M5 4v16M5 8h-2M5 15h2M12 6v12M12 9h-2M12 14h2M19 3v14M19 6h-2M19 12h2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </span>
+    <div>
+      <h1>台股條件選股器</h1>
+      <p class="sub">上市 + 上櫃 · 基本面與技術面篩選 · 自選股與買賣提醒</p>
+    </div>
+  </div>
+  <div class="status">
+    <span id="dataDate" class="chip mono">資料日期 —</span>
+    <label class="check live-chk" title="交易時間內每 3 分鐘更新全部股票的股價（證交所即時報價，約延遲數秒）"><input id="liveAllChk" type="checkbox" checked> 盤中即時 <span id="liveTxt" class="small muted"></span></label>
+    <span id="srcL" class="pill pill-wait">上市 載入中</span>
+    <span id="srcO" class="pill pill-wait">上櫃 載入中</span>
+    <div class="bell-wrap">
+      <button id="bellBtn" class="btn ghost bell" type="button" aria-label="提醒通知" aria-expanded="false">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15L6 16zM10 20a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+        <span id="bellBadge" class="bell-badge" hidden>0</span>
+      </button>
+      <div id="bellPanel" class="bell-panel" hidden>
+        <div class="bp-head">
+          <strong>提醒通知</strong>
+          <button id="markRead" type="button" class="linkbtn">全部標為已讀</button>
+        </div>
+        <div class="bp-settings">
+          <button id="notifBtn" type="button" class="btn small">開啟桌面通知</button>
+          <label class="check"><input id="soundChk" type="checkbox" checked> 提示音</label>
+          <button id="testNotif" type="button" class="linkbtn">測試通知</button>
+        </div>
+        <p id="notifMsg" class="note"></p>
+        <ul id="logList" class="log-list"></ul>
+      </div>
+    </div>
+    <button id="reloadBtn" class="btn ghost" type="button">重新載入</button>
+  </div>
+</header>
+
+<div id="updBanner" class="banner upd-banner" hidden></div>
+<div id="demoBanner" class="banner" hidden></div>
+<div id="partialBanner" class="banner" hidden></div>
+
+<main class="layout">
+  <aside class="filters" aria-label="篩選條件">
+    <details id="filterDetails" open>
+      <summary>篩選條件 <span id="activeCount" class="count-badge" hidden></span></summary>
+
+      <div class="field">
+        <label for="q">代號 / 名稱</label>
+        <input id="q" type="search" placeholder="例：2330、信昌電" autocomplete="off">
+      </div>
+
+      <div class="field">
+        <span class="label">市場</span>
+        <div class="seg seg-full" id="mktSeg">
+          <button type="button" data-mkt="all">全部</button>
+          <button type="button" data-mkt="L">上市</button>
+          <button type="button" data-mkt="O">上櫃</button>
+        </div>
+      </div>
+
+      <div class="field tech-box">
+        <div class="label-row">
+          <span class="label">技術條件 <span class="hint">(全部符合)</span></span>
+          <button id="techClear" type="button" class="linkbtn">清除</button>
+        </div>
+        <div id="techChips" class="ind-list tech-list" role="group" aria-label="技術條件"></div>
+        <div class="pattern-opts">
+          <label for="pivotW">轉折靈敏度</label>
+          <select id="pivotW">
+            <option value="3">敏感（前後 3 日）</option>
+            <option value="5">一般（前後 5 日）</option>
+            <option value="8">穩健（前後 8 日）</option>
+          </select>
+          <label for="breakDays">突破發生在</label>
+          <select id="breakDays">
+            <option value="5">近 5 個交易日</option>
+            <option value="10">近 10 個交易日</option>
+            <option value="20">近 20 個交易日</option>
+          </select>
+        </div>
+        <div id="dbStatus" class="db-status">
+          <p id="dbTxt" class="note">歷史資料準備中…</p>
+          <div class="bar" id="dbBarWrap" hidden><span id="dbBar"></span></div>
+        </div>
+        <div id="scanFallback" class="scan-fallback" hidden>
+          <p class="note">無法建立全市場歷史資料時，可以改用逐檔掃描：先用其他條件縮小範圍，再按掃描（一次最多 <span id="scanMaxTxt">60</span> 檔）。</p>
+          <button id="scanBtn" type="button" class="btn block">逐檔掃描技術訊號</button>
+          <div id="scanProg" class="scan-prog" hidden>
+            <div class="bar"><span id="scanBar"></span></div>
+            <div class="scan-row"><span id="scanTxt" class="mono small"></span><button id="scanStop" type="button" class="linkbtn">停止</button></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <span class="label">快速條件</span>
+        <div class="presets">
+          <button type="button" class="btn small" data-preset="value">價值股</button>
+          <button type="button" class="btn small" data-preset="yield">高殖利率</button>
+          <button type="button" class="btn small" data-preset="profit">高 EPS</button>
+          <button type="button" class="btn small" data-preset="loss">虧損股</button>
+        </div>
+      </div>
+
+      <fieldset class="range">
+        <legend>本益比 P/E <span class="hint">(倍)</span></legend>
+        <div class="range-row">
+          <input id="peMin" type="number" inputmode="decimal" step="0.1" placeholder="最低">
+          <span aria-hidden="true">–</span>
+          <input id="peMax" type="number" inputmode="decimal" step="0.1" placeholder="最高">
+        </div>
+        <p class="note">以近四季 EPS 計算；虧損股沒有本益比，設定區間時會被排除。</p>
+      </fieldset>
+
+      <fieldset class="range">
+        <legend>EPS <span class="hint" id="epsPeriod">(元)</span></legend>
+        <div class="range-row">
+          <input id="epsMin" type="number" inputmode="decimal" step="0.01" placeholder="最低">
+          <span aria-hidden="true">–</span>
+          <input id="epsMax" type="number" inputmode="decimal" step="0.01" placeholder="最高">
+        </div>
+      </fieldset>
+
+      <fieldset class="range">
+        <legend>殖利率 <span class="hint">(%)</span></legend>
+        <div class="range-row">
+          <input id="yMin" type="number" inputmode="decimal" step="0.1" placeholder="最低">
+          <span aria-hidden="true">–</span>
+          <input id="yMax" type="number" inputmode="decimal" step="0.1" placeholder="最高">
+        </div>
+      </fieldset>
+
+      <div class="field">
+        <div class="label-row">
+          <span class="label">產業別</span>
+          <button id="indClear" type="button" class="linkbtn">全部產業</button>
+        </div>
+        <div id="industries" class="ind-list" role="group" aria-label="產業別"></div>
+      </div>
+
+      <button id="resetBtn" type="button" class="btn block">清除所有條件</button>
+    </details>
+  </aside>
+
+  <section class="results" aria-label="股票列表">
+    <div class="results-head">
+      <div class="tabs" role="tablist" aria-label="檢視">
+        <button type="button" class="tab on" data-view="all" role="tab">全部股票</button>
+        <button type="button" class="tab" data-view="watch" role="tab">自選股 <span id="watchCount" class="n">0</span></button>
+      </div>
+      <div id="sortWrap" class="sort-wrap">
+        <label for="sortSel">排序</label>
+        <select id="sortSel">
+          <option value="pct:-1">漲幅 高→低</option>
+          <option value="pct:1">漲幅 低→高</option>
+          <option value="pe:1">本益比 低→高</option>
+          <option value="pe:-1">本益比 高→低</option>
+          <option value="eps:-1">EPS 高→低</option>
+          <option value="yield:-1">殖利率 高→低</option>
+          <option value="volume:-1">成交量 大→小</option>
+          <option value="score:-1">技術偏多 → 偏空</option>
+          <option value="code:1">代號</option>
+        </select>
+      </div>
+      <div id="watchTools" class="watch-tools" hidden>
+        <span id="quoteTxt" class="small muted"></span>
+        <button id="quoteBtn" type="button" class="btn small">更新報價</button>
+      </div>
+    </div>
+    <p id="summary" class="summary">—</p>
+    <p id="techNote" class="tech-note" hidden></p>
+    <div class="table-wrap">
+      <table id="tbl">
+        <thead id="thead"></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="more-wrap"><button id="moreBtn" type="button" class="btn" hidden>顯示更多</button></div>
+  </section>
+</main>
+
+<div id="scrim" class="scrim" hidden></div>
+<aside id="detail" class="detail" aria-label="個股技術分析" hidden>
+  <div class="detail-head">
+    <div>
+      <div class="d-title"><span id="dName">—</span> <span id="dCode" class="mono muted">—</span></div>
+      <div class="d-meta">
+        <span id="dMkt" class="chip">—</span> <span id="dInd" class="chip">—</span>
+        <button id="dStar" type="button" class="btn small star-btn" aria-pressed="false">☆ 加入自選</button>
+      </div>
+    </div>
+    <div class="d-price">
+      <div id="dClose" class="mono big">—</div>
+      <div id="dChg" class="mono">—</div>
+    </div>
+    <button id="closeDetail" type="button" class="iconbtn" aria-label="關閉">
+      <svg viewBox="0 0 24 24" width="20" height="20"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+
+  <div class="d-body">
+    <dl class="kv">
+      <div><dt>本益比</dt><dd id="kPE" class="mono">—</dd></div>
+      <div><dt>EPS</dt><dd id="kEPS" class="mono">—</dd></div>
+      <div><dt>殖利率</dt><dd id="kY" class="mono">—</dd></div>
+      <div><dt>淨值比</dt><dd id="kPB" class="mono">—</dd></div>
+    </dl>
+
+    <div class="chart-toolbar">
+      <div class="seg" role="tablist" aria-label="期間">
+        <button type="button" data-range="66" class="on">3 個月</button>
+        <button type="button" data-range="130">6 個月</button>
+      </div>
+      <div class="ov-list" role="group" aria-label="圖層">
+        <button type="button" class="ov" data-ov="ma" aria-pressed="true">均線</button>
+        <button type="button" class="ov" data-ov="boll" aria-pressed="false">布林</button>
+        <button type="button" class="ov" data-ov="sr" aria-pressed="true">支撐壓力</button>
+        <button type="button" class="ov" data-ov="pattern" aria-pressed="true">頭底型態</button>
+        <button type="button" class="ov" data-ov="trades" aria-pressed="true">我的交易</button>
+      </div>
+    </div>
+    <div id="ohlc" class="ohlc mono">—</div>
+    <div id="chartMain" class="chart-main"></div>
+    <div class="chart-toolbar">
+      <div class="seg" role="tablist" aria-label="指標">
+        <button type="button" data-ind="kd" class="on">KD</button>
+        <button type="button" data-ind="macd">MACD</button>
+        <button type="button" data-ind="rsi">RSI</button>
+        <button type="button" data-ind="bias">乖離率</button>
+      </div>
+      <span id="indLegend" class="mono small muted"></span>
+    </div>
+    <div id="chartInd" class="chart-ind"></div>
+    <p id="chartMsg" class="chart-msg" hidden></p>
+    <details class="explain" id="indExplain">
+      <summary>這個指標怎麼看？</summary>
+      <div id="indExplainBody"></div>
+    </details>
+
+    <h3 class="sec">技術訊號 <span class="hint">點開看白話解釋與報告寫法</span></h3>
+    <div id="signals" class="sig-cards"></div>
+    <p class="note">訊號依日 K 自動判讀，僅供學習參考，不構成投資建議。</p>
+
+    <h3 class="sec">買賣提醒 <span class="hint">條件成立時跳出通知（網頁需開著）</span></h3>
+    <form id="alertForm" class="trade-form alert-form" novalidate>
+      <div class="tf-field"><label for="aSide">提醒類型</label>
+        <select id="aSide"><option value="buy">買進提醒</option><option value="sell">賣出提醒</option></select></div>
+      <div class="tf-field"><label for="aType">條件</label>
+        <select id="aType">
+          <option value="priceGE">股價 ≥（元）</option>
+          <option value="priceLE">股價 ≤（元）</option>
+          <option value="retGE">獲利達（%）</option>
+          <option value="retLE">虧損達（%）</option>
+          <option value="tech">出現技術訊號</option>
+        </select></div>
+      <div class="tf-field" id="aValWrap"><label for="aVal">數值</label><input id="aVal" type="number" step="0.01" min="0" inputmode="decimal"></div>
+      <div class="tf-field" id="aTechWrap" hidden><label for="aTech">訊號</label><select id="aTech"></select></div>
+      <div class="tf-field tf-note"><label for="aNote">備註（選填）</label><input id="aNote" type="text" placeholder="例：跌破月線就停損"></div>
+      <div class="tf-actions">
+        <button type="submit" id="aSubmit" class="btn primary">新增提醒</button>
+        <button type="button" id="aCancel" class="btn" hidden>取消</button>
+      </div>
+    </form>
+    <p id="alertHint" class="note"></p>
+    <p id="alertErr" class="err" hidden></p>
+    <ul id="alertList" class="trade-list alert-list"></ul>
+
+    <h3 class="sec">我的模擬交易</h3>
+    <form id="tradeForm" class="trade-form" novalidate>
+      <div class="tf-field"><label for="tDate">日期</label><input id="tDate" type="date" required></div>
+      <div class="tf-field"><label for="tSide">買賣</label>
+        <select id="tSide"><option value="buy">買進</option><option value="sell">賣出</option></select></div>
+      <div class="tf-field"><label for="tPrice">價格</label><input id="tPrice" type="number" step="0.01" min="0" inputmode="decimal" required></div>
+      <div class="tf-field"><label for="tQty">張數</label><input id="tQty" type="number" step="1" min="1" value="1" inputmode="numeric" required></div>
+      <div class="tf-field tf-note"><label for="tNote">理由（選填）</label><input id="tNote" type="text" placeholder="例：KD 低檔黃金交叉、站上月線"></div>
+      <div class="tf-actions">
+        <button type="submit" id="tSubmit" class="btn primary">記錄交易</button>
+        <button type="button" id="tCancel" class="btn" hidden>取消</button>
+      </div>
+    </form>
+    <p id="tradeErr" class="err" hidden></p>
+    <div id="tradeSummary" class="trade-summary"></div>
+    <ul id="tradeList" class="trade-list"></ul>
+
+    <h3 class="sec">相關新聞</h3>
+    <ul id="news" class="news"></ul>
+    <div id="newsLinks" class="news-links"></div>
+  </div>
+</aside>
+
+<div id="toasts" class="toasts" aria-live="polite"></div>
+
+<div id="diagScrim" class="scrim diag-scrim" hidden></div>
+<div id="diagPanel" class="diag" role="dialog" aria-label="連線診斷" hidden>
+  <div class="diag-head">
+    <strong>連線診斷</strong>
+    <button id="diagClose" type="button" class="iconbtn" aria-label="關閉">
+      <svg viewBox="0 0 24 24" width="18" height="18"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+  <p class="note">逐一測試證交所、櫃買中心各個資料網址，大約 1 分鐘。完成後按「複製結果」，貼到對話裡就能找出哪裡出問題。</p>
+  <pre id="diagOut" class="diag-out">準備開始…</pre>
+  <div class="diag-actions">
+    <button id="diagCopy" type="button" class="btn primary">複製結果</button>
+    <button id="diagRun" type="button" class="btn">重新測試</button>
+  </div>
+</div>
+
+<footer class="foot">
+  <div>資料來源：臺灣證券交易所 OpenAPI、證券櫃檯買賣中心 OpenAPI、兩交易所每日收盤行情、證交所即時報價、鉅亨網新聞。僅供研究與教學使用，非投資建議。</div>
+  <div class="foot-tools">
+    自選股、提醒與交易紀錄只存在這台電腦的瀏覽器：
+    <button id="exportBtn" type="button" class="linkbtn">匯出備份</button>
+    <label class="linkbtn" for="importFile">匯入備份</label>
+    <input id="importFile" type="file" accept="application/json,.json" hidden>
+    <button id="csvBtn" type="button" class="linkbtn">匯出交易 CSV</button>
+    <button id="clearDbBtn" type="button" class="linkbtn">重建歷史資料</button>
+    <button id="diagBtn" type="button" class="linkbtn">連線診斷</button>
+    <button id="updBtn" type="button" class="linkbtn">檢查更新</button>
+    <span id="verTxt" class="small muted"></span>
+    <span id="ioMsg" class="small"></span>
+  </div>
+</footer>
+
+<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
